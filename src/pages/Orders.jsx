@@ -34,6 +34,8 @@ export default function Orders() {
   const [drivers, setDrivers] = useState([]);
   const [dispatching, setDispatching] = useState(false);
   const [driverDistances, setDriverDistances] = useState({}); // orderId -> meters
+  const [driverCoords, setDriverCoords] = useState({}); // orderId -> { lat, lng }
+  const [trackOrder, setTrackOrder] = useState(null);
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function Orders() {
     socket.on('new_order', loadOrders);
     socket.on('order_status_updated', loadOrders);
     socket.on('driver_location_updated', (payload) => {
+      setDriverCoords((c) => ({ ...c, [payload.orderId]: { lat: payload.lat, lng: payload.lng } }));
       setOrders((prev) => {
         const order = prev.find((o) => o._id === payload.orderId);
         if (order?.deliveryAddress) {
@@ -211,6 +214,11 @@ export default function Orders() {
                       🚴 عيّن دليفري
                     </button>
                   )}
+                  {o.status === 'out_for_delivery' && (
+                    <button className="btn btn-outline" onClick={() => setTrackOrder(o)}>
+                      🗺️ تتبع الموقع
+                    </button>
+                  )}
                   {!CURRENT_STATUSES.includes(o.status) && (
                     <button className="btn btn-danger" onClick={() => handleDeleteOrder(o._id)}>
                       حذف
@@ -359,6 +367,96 @@ export default function Orders() {
           </div>
         </div>
       )}
+
+      {/* Live driver tracking modal */}
+      {trackOrder && (
+        <div
+          onClick={() => setTrackOrder(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: 600 }}>
+            <h2 style={{ marginTop: 0 }}>تتبع الطلب #{trackOrder._id.slice(-6)} لحظيًا</h2>
+
+            {driverCoords[trackOrder._id] ? (
+              <>
+                <iframe
+                  title="driver-tracking"
+                  srcDoc={buildTrackingMapHtml(
+                    driverCoords[trackOrder._id],
+                    trackOrder.deliveryAddress?.location
+                      ? {
+                          lat: trackOrder.deliveryAddress.location.coordinates[1],
+                          lng: trackOrder.deliveryAddress.location.coordinates[0],
+                        }
+                      : null
+                  )}
+                  style={{ width: '100%', height: 400, border: 0, borderRadius: 12 }}
+                />
+                {driverDistances[trackOrder._id] != null && (
+                  <p style={{ textAlign: 'center', marginTop: 8 }}>
+                    🚴 الدليفري على بعد{' '}
+                    {driverDistances[trackOrder._id] < 1000
+                      ? `${driverDistances[trackOrder._id]} متر`
+                      : `${(driverDistances[trackOrder._id] / 1000).toFixed(1)} كم`}{' '}
+                    من العميل
+                  </p>
+                )}
+              </>
+            ) : (
+              <p style={{ textAlign: 'center', color: 'var(--text-dark-muted)' }}>
+                لسه ما استلمناش موقع الدليفري - هيبان أول ما تطبيقه يبعت أول تحديث موقع
+              </p>
+            )}
+
+            <button className="btn btn-outline" onClick={() => setTrackOrder(null)} style={{ marginTop: 8 }}>
+              إغلاق
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function buildTrackingMapHtml(driverCoords, customerCoords) {
+  const center = driverCoords || customerCoords;
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>html,body,#map{height:100%;margin:0;padding:0;}</style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([${center.lat}, ${center.lng}], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const customerIcon = L.divIcon({ html: '🏠', iconSize: [28, 28] });
+    const driverIcon = L.divIcon({ html: '🛵', iconSize: [28, 28] });
+
+    ${customerCoords ? `L.marker([${customerCoords.lat}, ${customerCoords.lng}], { icon: customerIcon }).addTo(map).bindPopup('عنوان العميل');` : ''}
+    ${driverCoords ? `L.marker([${driverCoords.lat}, ${driverCoords.lng}], { icon: driverIcon }).addTo(map).bindPopup('الدليفري دلوقتي هنا');` : ''}
+
+    ${
+      driverCoords && customerCoords
+        ? `const bounds = L.latLngBounds([[${driverCoords.lat}, ${driverCoords.lng}], [${customerCoords.lat}, ${customerCoords.lng}]]); map.fitBounds(bounds, { padding: [40, 40] });`
+        : ''
+    }
+  </script>
+</body>
+</html>`;
 }

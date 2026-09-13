@@ -28,6 +28,9 @@ export default function Sidebar() {
       <NavLink to="/orders" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
         الطلبات
       </NavLink>
+      <NavLink to="/settings" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+        الإعدادات
+      </NavLink>
       <button className="logout-link" onClick={logout}>
         تسجيل الخروج
       </button>

@@ -9,9 +9,11 @@ export default function Reports() {
   const [from, setFrom] = useState(toDateInputValue(new Date(Date.now() - 7 * 86400000)));
   const [to, setTo] = useState(toDateInputValue(new Date()));
   const [report, setReport] = useState(null);
+  const [topPerformers, setTopPerformers] = useState(null);
 
   const load = () => {
     client.get('/reports/sales', { params: { from, to } }).then((res) => setReport(res.data));
+    client.get('/reports/top-performers', { params: { from, to } }).then((res) => setTopPerformers(res.data));
   };
 
   useEffect(() => {
@@ -118,6 +120,72 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
+
+          {topPerformers && (
+            <>
+              <div className="card">
+                <h2>🏆 أكتر العملاء طلبًا</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>العميل</th>
+                      <th>الموبايل</th>
+                      <th>عدد الطلبات</th>
+                      <th>إجمالي الصرف</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topPerformers.topCustomers.map((c) => (
+                      <tr key={c._id}>
+                        <td>{c.name}</td>
+                        <td>{c.phone}</td>
+                        <td>{c.orderCount}</td>
+                        <td>{c.totalSpent} ج.م</td>
+                      </tr>
+                    ))}
+                    {topPerformers.topCustomers.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dark-muted)' }}>
+                          مفيش بيانات في الفترة دي
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="card">
+                <h2>🚴 أسرع وأكتر الدليفريز توصيلًا</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>الدليفري</th>
+                      <th>الموبايل</th>
+                      <th>عدد التوصيلات</th>
+                      <th>متوسط وقت التوصيل</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topPerformers.topDrivers.map((d) => (
+                      <tr key={d._id}>
+                        <td>{d.name}</td>
+                        <td>{d.phone}</td>
+                        <td>{d.deliveryCount}</td>
+                        <td>{d.avgDeliveryMinutes} دقيقة</td>
+                      </tr>
+                    ))}
+                    {topPerformers.topDrivers.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dark-muted)' }}>
+                          مفيش بيانات في الفترة دي
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

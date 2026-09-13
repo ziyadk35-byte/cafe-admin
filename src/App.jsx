@@ -10,6 +10,7 @@ import Staff from './pages/Staff';
 import Coupons from './pages/Coupons';
 import Reports from './pages/Reports';
 import Orders from './pages/Orders';
+import Settings from './pages/Settings';
 
 function ProtectedLayout({ children }) {
   const { user, loading } = useAuth();
@@ -82,6 +83,14 @@ function AppRoutes() {
         element={
           <ProtectedLayout>
             <Orders />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedLayout>
+            <Settings />
           </ProtectedLayout>
         }
       />
