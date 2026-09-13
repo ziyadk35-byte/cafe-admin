@@ -35,6 +35,7 @@ export default function Orders() {
   const [dispatching, setDispatching] = useState(false);
   const [driverDistances, setDriverDistances] = useState({}); // orderId -> meters
   const [driverCoords, setDriverCoords] = useState({}); // orderId -> { lat, lng }
+  const [driverLocationUpdatedAt, setDriverLocationUpdatedAt] = useState({});
   const [trackOrder, setTrackOrder] = useState(null);
   const socketRef = useRef(null);
 
@@ -47,7 +48,24 @@ export default function Orders() {
 
   const loadOrders = () => {
     if (!selectedBranch) return;
-    client.get(`/orders/branch/${selectedBranch}`).then((res) => setOrders(res.data));
+    client.get(`/orders/branch/${selectedBranch}`).then((res) => {
+      setOrders(res.data);
+      const coords = {};
+      const distances = {};
+      const updates = {};
+      res.data.forEach((order) => {
+        const dc = order.driverLocation?.coordinates;
+        const cc = order.deliveryAddress?.location?.coordinates;
+        if (dc?.length === 2) {
+          coords[order._id] = { lat: dc[1], lng: dc[0] };
+          if (order.driverLocationUpdatedAt) updates[order._id] = order.driverLocationUpdatedAt;
+          if (cc?.length === 2) distances[order._id] = Math.round(haversine(dc[1], dc[0], cc[1], cc[0]));
+        }
+      });
+      setDriverCoords((prev) => ({ ...prev, ...coords }));
+      setDriverDistances((prev) => ({ ...prev, ...distances }));
+      setDriverLocationUpdatedAt((prev) => ({ ...prev, ...updates }));
+    });
   };
 
   useEffect(() => {
@@ -62,6 +80,7 @@ export default function Orders() {
     socket.on('order_status_updated', loadOrders);
     socket.on('driver_location_updated', (payload) => {
       setDriverCoords((c) => ({ ...c, [payload.orderId]: { lat: payload.lat, lng: payload.lng } }));
+      setDriverLocationUpdatedAt((u) => ({ ...u, [payload.orderId]: payload.updatedAt || new Date().toISOString() }));
       setOrders((prev) => {
         const order = prev.find((o) => o._id === payload.orderId);
         if (order?.deliveryAddress) {
@@ -284,6 +303,11 @@ export default function Orders() {
 
             <h3>مسار الطلب</h3>
             <p>وافق عليه: {detailOrder.confirmedBy?.name || 'لسه ماحدش وافق'}</p>
+            {detailOrder.confirmedAt && <p>وقت القبول: {new Date(detailOrder.confirmedAt).toLocaleString('ar-EG')} ({formatMinutes(new Date(detailOrder.confirmedAt) - new Date(detailOrder.availableToBranchAt || detailOrder.createdAt))} من ظهور الطلب للكاشير)</p>}
+            {detailOrder.preparingAt && <p>بدأ التحضير: {new Date(detailOrder.preparingAt).toLocaleString('ar-EG')}</p>}
+            {detailOrder.dispatchedAt && detailOrder.preparingAt && <p>مدة التحضير: {formatMinutes(new Date(detailOrder.dispatchedAt) - new Date(detailOrder.preparingAt))}</p>}
+            {detailOrder.deliveredAt && detailOrder.dispatchedAt && <p>مدة التوصيل: {formatMinutes(new Date(detailOrder.deliveredAt) - new Date(detailOrder.dispatchedAt))}</p>}
+            {detailOrder.deliveredAt && <p>وقت الوصول: {new Date(detailOrder.deliveredAt).toLocaleString('ar-EG')}</p>}
             <p>
               الدليفري:{' '}
               {detailOrder.driver ? `${detailOrder.driver.name} - ${detailOrder.driver.phone}` : 'لسه ماتحددش'}
@@ -409,6 +433,11 @@ export default function Orders() {
                     من العميل
                   </p>
                 )}
+                {driverLocationUpdatedAt[trackOrder._id] && (
+                  <p style={{ textAlign: 'center', color: 'var(--text-dark-muted)', fontSize: 12 }}>
+                    آخر تحديث للموقع: {new Date(driverLocationUpdatedAt[trackOrder._id]).toLocaleString('ar-EG')}
+                  </p>
+                )}
               </>
             ) : (
               <p style={{ textAlign: 'center', color: 'var(--text-dark-muted)' }}>
@@ -424,6 +453,12 @@ export default function Orders() {
       )}
     </div>
   );
+}
+
+function formatMinutes(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const minutes = ms / 60000;
+  return minutes < 1 ? `${Math.round(ms / 1000)} ثانية` : `${minutes.toFixed(1)} دقيقة`;
 }
 
 function buildTrackingMapHtml(driverCoords, customerCoords) {
