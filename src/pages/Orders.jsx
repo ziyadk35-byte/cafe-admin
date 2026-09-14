@@ -6,13 +6,14 @@ const STATUS_LABELS = {
   pending: 'جديد',
   confirmed: 'مؤكد',
   preparing: 'بيتحضّر',
+  assigned_to_driver: 'في انتظار استلام الدليفري',
   out_for_delivery: 'مع الدليفري',
   delivered: 'تم التوصيل',
   cancelled: 'ملغي',
 };
 
 const NEXT_STATUS = { pending: 'confirmed', confirmed: 'preparing' };
-const CURRENT_STATUSES = ['pending', 'confirmed', 'preparing', 'out_for_delivery'];
+const CURRENT_STATUSES = ['pending', 'confirmed', 'preparing', 'assigned_to_driver', 'out_for_delivery'];
 
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -211,6 +212,9 @@ export default function Orders() {
                 <td>{o.paymentMethod === 'cash' ? 'كاش' : 'أونلاين'}</td>
                 <td>
                   <span className="badge">{STATUS_LABELS[o.status]}</span>
+                  {o.status === 'assigned_to_driver' && (
+                    <div style={{ fontSize: 11, color: '#866A43', marginTop: 4 }}>🛵 مستني الدليفري يضغط استلام</div>
+                  )}
                   {o.status === 'out_for_delivery' && driverDistances[o._id] != null && (
                     <div style={{ fontSize: 11, color: 'var(--olive)', marginTop: 4 }}>
                       🚴{' '}
@@ -306,7 +310,8 @@ export default function Orders() {
             {detailOrder.confirmedAt && <p>وقت القبول: {new Date(detailOrder.confirmedAt).toLocaleString('ar-EG')} ({formatMinutes(new Date(detailOrder.confirmedAt) - new Date(detailOrder.availableToBranchAt || detailOrder.createdAt))} من ظهور الطلب للكاشير)</p>}
             {detailOrder.preparingAt && <p>بدأ التحضير: {new Date(detailOrder.preparingAt).toLocaleString('ar-EG')}</p>}
             {detailOrder.dispatchedAt && detailOrder.preparingAt && <p>مدة التحضير: {formatMinutes(new Date(detailOrder.dispatchedAt) - new Date(detailOrder.preparingAt))}</p>}
-            {detailOrder.deliveredAt && detailOrder.dispatchedAt && <p>مدة التوصيل: {formatMinutes(new Date(detailOrder.deliveredAt) - new Date(detailOrder.dispatchedAt))}</p>}
+            {detailOrder.driverAcceptedAt && <p>الدليفري استلم: {new Date(detailOrder.driverAcceptedAt).toLocaleString('ar-EG')}</p>}
+            {detailOrder.deliveredAt && (detailOrder.driverAcceptedAt || detailOrder.dispatchedAt) && <p>مدة التوصيل: {formatMinutes(new Date(detailOrder.deliveredAt) - new Date(detailOrder.driverAcceptedAt || detailOrder.dispatchedAt))}</p>}
             {detailOrder.deliveredAt && <p>وقت الوصول: {new Date(detailOrder.deliveredAt).toLocaleString('ar-EG')}</p>}
             <p>
               الدليفري:{' '}
